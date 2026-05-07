@@ -175,3 +175,88 @@ ls -lah data
 
 本仓库默认用于代码与流程复现，不包含生产密钥与私有业务文档。  
 在公开仓库场景下，请仅提交可公开的信息；涉及账号、预算、内部流程细节的内容请保留在本地或私有仓库。
+
+## 10) Windows 部署说明（PowerShell）
+
+说明：Windows 可完整运行抓取、入库、消费与提醒逻辑；但 macOS 的 `launchd` 命令不适用，需改用 Windows 任务计划程序（Task Scheduler）。
+
+### 10.1 选择安装路径并初始化
+
+将下面路径替换为你自己的安装目录（示例为 `D:\apps\openbmb-paper-discovery-v3`）：
+
+```powershell
+# 你可以改成任意目录
+$InstallDir = "D:\apps\openbmb-paper-discovery-v3"
+$ParentDir  = Split-Path $InstallDir -Parent
+
+mkdir $ParentDir -Force | Out-Null
+cd $ParentDir
+git clone https://github.com/Hamster-Dora/openbmb-paper-discovery-v3.git
+cd $InstallDir
+
+# 建议 Python 3.11
+py -3.11 -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+copy .env.example .env
+notepad .env
+```
+
+> `.env` 内填写你自己的 API Key/Webhook，且不要提交到 GitHub。
+
+### 10.2 手动执行（按日期回溯）
+
+```powershell
+cd D:\apps\openbmb-paper-discovery-v3
+.\venv\Scripts\python.exe .\main_manual.py --start_date 2025-07-01 --end_date 2025-07-10
+```
+
+可选：只跑部分 tags（更省配额）
+
+```powershell
+.\venv\Scripts\python.exe .\main_manual.py --start_date 2025-07-01 --end_date 2025-07-10 --tags "LLM agent,tool learning"
+```
+
+### 10.3 自动任务（Task Scheduler）
+
+下面命令会创建两个每天执行的任务：
+
+```powershell
+$InstallDir = "D:\apps\openbmb-paper-discovery-v3"
+$Py = "$InstallDir\venv\Scripts\python.exe"
+
+# 每天 01:00：regular+conference(按日期判断)+consumer
+schtasks /Create /F /SC DAILY /ST 01:00 /TN "OpenBMB-Nightly" `
+  /TR "`"$Py`" `"$InstallDir\main_cron.py`" --job all"
+
+# 每天 18:00：智能提醒
+schtasks /Create /F /SC DAILY /ST 18:00 /TN "OpenBMB-Reminder" `
+  /TR "`"$Py`" `"$InstallDir\main_cron.py`" --job reminder"
+```
+
+查看任务：
+
+```powershell
+schtasks /Query /TN "OpenBMB-Nightly" /V /FO LIST
+schtasks /Query /TN "OpenBMB-Reminder" /V /FO LIST
+```
+
+手动触发测试：
+
+```powershell
+schtasks /Run /TN "OpenBMB-Nightly"
+schtasks /Run /TN "OpenBMB-Reminder"
+```
+
+### 10.4 Windows 日常自检（简版）
+
+```powershell
+$InstallDir = "D:\apps\openbmb-paper-discovery-v3"
+cd $InstallDir
+
+schtasks /Query /TN "OpenBMB-Reminder" /FO LIST | findstr /I "Status"
+schtasks /Query /TN "OpenBMB-Nightly" /FO LIST  | findstr /I "Status"
+
+.\venv\Scripts\python.exe -c "from database.models import Paper; print('pending =', Paper.select().where(Paper.status=='PENDING').count())"
+```
