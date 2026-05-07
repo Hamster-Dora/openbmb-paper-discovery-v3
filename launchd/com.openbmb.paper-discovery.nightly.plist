@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.openbmb.paper-discovery.nightly</string>
+
+    <!-- caffeinate -s 包裹子进程：子进程运行期间阻止系统休眠（合盖+插电亦有效），
+         任务结束后自动放行。无论跑 30 分钟还是 18 小时都适用。 -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/caffeinate</string>
+        <string>-s</string>
+        <string>/Users/zhangzhixian/Desktop/openbmb-paper-discovery-v3/venv/bin/python</string>
+        <string>/Users/zhangzhixian/Desktop/openbmb-paper-discovery-v3/main_cron.py</string>
+        <string>--job</string>
+        <string>all</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/zhangzhixian/Desktop/openbmb-paper-discovery-v3</string>
+
+    <!-- 每天凌晨 01:00 触发；休眠唤醒后 launchd 会补执行 -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>1</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/zhangzhixian/Desktop/openbmb-paper-discovery-v3/data/logs/launchd_nightly.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/zhangzhixian/Desktop/openbmb-paper-discovery-v3/data/logs/launchd_nightly.err</string>
+</dict>
+</plist>

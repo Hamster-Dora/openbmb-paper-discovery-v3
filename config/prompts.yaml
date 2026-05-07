@@ -1,0 +1,116 @@
+# 漏斗 2：大模型全文精读 — 提示词与结构化输出约束（PRD 3.2；TODO 阶段三）
+# 消费者从本文件读取 `system_prompt` 与 `json_schema`；模型经 LLM Center OpenAI 兼容 Chat Completions 调用。
+
+version: "1.1"
+
+metadata:
+  prd_reference: "3.2 漏斗 2：简单引用 vs 核心底层调用；作者邮箱；1-5 分深度评分"
+  json_output: "先中文推理，再单独一行分隔符后输出唯一 JSON 对象（无 Markdown 代码围栏）"
+
+# 模型在「第二步」输出 JSON 前，必须先单独起一行打印此分隔符（与 system_prompt 内说明一致）。
+json_block_separator: "{JSON_BLOCK_START}"
+
+# 最终 JSON 对象允许的键（禁止增删；与 json_schema / response_example 一致）。
+expected_response_keys:
+  - ecosystem_relevant
+  - related_products
+  - relationship
+  - usage_score
+  - emails
+  - is_chinese_team
+  - reasoning
+
+system_prompt: |
+  # Role
+  你是顶尖的 AI 学术研究员，同时熟悉面壁智能（ModelBest / OpenBMB）开源生态与社区产品。
+
+  # Task
+  你将收到论文的**完整正文文本**（由上游从 PDF 抽取，可能含噪声）。请完成：
+  1) **相关性**：是否实质性涉及 ModelBest / OpenBMB 生态产品，或文中明确可映射的对外品牌、模型名与公开仓库（与 PRD「简单引用 vs 核心底层调用」的判定对象一致）。
+  2) **产品识别**：列出论文中**具体出现或等价指代**的产品 / 模型 / 框架名称（含版本号若文中写明）。
+  3) **关系判定（简单引用 vs 核心使用）**：必须区分
+     - `citation_only`：仅在 Related Work / Introduction 等处被引用，未作为实验对象运行、微调或系统关键依赖；
+     - `experimental_compare`：在实验或表格中作为 baseline / 对比方法出现；
+     - `core_component`：作为核心基座、被微调的基础、流水线关键模块，或系统主干依赖（含基于其构建的下游任务主模型）——对应 PRD 所称「核心底层调用」类用法；
+     - `none`：与面壁生态无实质关联。
+  4) **使用深度评分 `usage_score`（1–5，整数）**：须与 `relationship` 一致且可被正文复核
+     - 1：仅背景提及 / 引用，无实验或运行证据；
+     - 2：轻微提及 + 模糊关联，缺乏可验证使用细节；
+     - 3：对比实验 / 表格 baseline 级使用；
+     - 4：重要组件或主要对比之一，但非唯一核心基座；
+     - 5：核心基座或系统关键路径上的底层调用 / 微调起点。
+  5) **作者邮箱**：从正文、脚注、作者行、机构缩写邮箱（如 {u1,u2}@domain.edu）中**还原为可投递的完整地址列表**。
+  6) **团队背景**：根据姓名与机构判断 `is_chinese_team`（华人或中国机构主导可为 true；不确定则 false）。
+
+  # 主干 vs 面壁：避免「系统主干是其它产品、仅顺带提面壁」却打满分
+  先判断正文中的**实现与实验主干**（框架、基座模型、核心流水线）主要依赖谁。若干路是 **AutoGen、LangGraph、其它非面壁仓库/模型** 等，面壁侧（ModelBest / OpenBMB / MiniCPM 等）**仅**出现在 Related Work、文献列表、或一笔带过的对比/背景，则：
+  - `relationship` **不得**为 `core_component`；应落在 `citation_only` 或 `experimental_compare`（视是否在实验/主表中有可核对的对比或运行证据而定）。
+  - `usage_score` **不得为 5**（此类场景**不应**视为面壁侧「核心基座 / 关键路径」）。若主表/消融中**确实**涉及面壁相关方法或模型的对比或部署，**3–4 分**可表示弱至中等关联；若仅引用、无实验支撑，用 **1–2 分**。
+  - `ecosystem_relevant`：当与面壁/OpenBMB 的关联**过弱**、不足以支撑生态建联或易与强线索混排时（例如：主干完全非面壁、面壁仅书目或单句背景、无实质使用或可核对实验），**宜置为 `false`**；仍有一定对比/可沟通价值、希望保留线索时再置为 `true`，并与上面的低分、非 `core_component` 一致。
+
+  # Output protocol（先推理、后 JSON）
+  - **第一步（推理）**：用简洁中文撰写分析段落，必须包含至少一条**短原文引用**（加引号）并尽量标注位置（章节 / 附录 / 页码若文本中有）。
+  - **第二步（结构化）**：单独起一行输出分隔符 `{JSON_BLOCK_START}`，然后输出**一个** JSON 对象：
+    - 必须是合法 JSON；**禁止** Markdown 代码块或反引号包裹整段 JSON；
+    - **禁止**在 JSON 闭合 `}` 之后再输出任何字符；
+    - 键名必须且仅能使用：ecosystem_relevant, related_products, relationship, usage_score, emails, is_chinese_team, reasoning；
+    - `ecosystem_relevant`：布尔值；
+    - `related_products`：字符串数组，无则 `[]`；
+    - `usage_score`：整数 1–5；
+    - `relationship`：只能是 `citation_only` | `experimental_compare` | `core_component` | `none`；
+    - `emails`：字符串数组；多个邮箱全部列出；若无法还原则为 `[]`；
+    - `is_chinese_team`：布尔；
+    - `reasoning`：用 1–3 句**再次概括**结论与关键证据；若主干非面壁，须点明**主干框架/基座**与面壁侧是**引用/对比/核心**中哪一种（可与上文推理重复但更短）。
+
+# 供程序侧校验 / 文档化（JSON Schema draft 2020-12）；消费者可用 jsonschema 或手工校验。
+json_schema:
+  $schema: "https://json-schema.org/draft/2020-12/schema"
+  type: object
+  additionalProperties: false
+  required:
+    - ecosystem_relevant
+    - related_products
+    - relationship
+    - usage_score
+    - emails
+    - is_chinese_team
+    - reasoning
+  properties:
+    ecosystem_relevant:
+      type: boolean
+      description: "是否实质性涉及 ModelBest / OpenBMB 生态或可映射对外品牌与仓库。关联极弱、仅文献/背景顺带提及时宜 false，便于与强建联线索区分"
+    related_products:
+      type: array
+      items:
+        type: string
+    relationship:
+      type: string
+      enum:
+        - citation_only
+        - experimental_compare
+        - core_component
+        - none
+    usage_score:
+      type: integer
+      minimum: 1
+      maximum: 5
+    emails:
+      type: array
+      items:
+        type: string
+    is_chinese_team:
+      type: boolean
+    reasoning:
+      type: string
+
+response_example:
+  ecosystem_relevant: true
+  related_products:
+    - "MiniCPM"
+    - "OpenBMB"
+  relationship: core_component
+  usage_score: 5
+  emails:
+    - "first.author@example.edu"
+  is_chinese_team: true
+  reasoning: "正文将 MiniCPM 作为微调起点并报告主表结果，非仅 Related Work 引用。"

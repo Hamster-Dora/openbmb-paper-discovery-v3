@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.openbmb.paper-discovery.reminder</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/zhangzhixian/Desktop/openbmb-paper-discovery-v3/venv/bin/python</string>
+        <string>/Users/zhangzhixian/Desktop/openbmb-paper-discovery-v3/main_cron.py</string>
+        <string>--job</string>
+        <string>reminder</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/zhangzhixian/Desktop/openbmb-paper-discovery-v3</string>
+
+    <!-- 每天下午 18:00 触发；判断今晚/周末是否需要保持开机 -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>18</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/zhangzhixian/Desktop/openbmb-paper-discovery-v3/data/logs/launchd_reminder.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/zhangzhixian/Desktop/openbmb-paper-discovery-v3/data/logs/launchd_reminder.err</string>
+</dict>
+</plist>

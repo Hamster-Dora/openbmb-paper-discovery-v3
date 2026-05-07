@@ -1,0 +1,11 @@
+aiohttp
+PyMuPDF
+google-genai
+peewee
+pandas
+openpyxl
+tenacity
+apscheduler
+python-dotenv
+certifi
+PyYAML
